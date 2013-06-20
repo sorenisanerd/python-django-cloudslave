@@ -193,23 +193,23 @@ class Reservation(models.Model):
         self.state = state
         self.save(update_fields=['state'])
 
-    def update_status(self):
+    def update_state(self):
         active_count = 0
         for slave in self.slave_set.all():
-            slave.update_status()
-            if slave.status == 'ERROR':
+            slave.update_state()
+            if slave.state == 'ERROR':
                 logger.info("%r went into ERROR state. Terminating reservation.")
                 self.set_state(self.FAILED_TO_START)
                 self.terminate()
                 break
-            elif slave.status == 'BUILD':
+            elif slave.state == 'BUILD':
                 if datetime.datetime.now() > self.timeout:
                     self.set_state(self.FAILED_TO_START)
                     self.terminate()
                     break
                 self.set_state(self.BOOTING)
                 break
-            elif slave.status == 'ACTIVE':
+            elif slave.state == 'ACTIVE':
                 active_count += 1
 
         if active_count == self.slave_set.count():
@@ -222,10 +222,10 @@ class Slave(models.Model):
     name = models.CharField(max_length=200, primary_key=True)
     reservation = models.ForeignKey(Reservation)
     cloud_node_id = models.CharField(max_length=200)
-    status = models.CharField(max_length=15, blank=True, null=True)
+    state = models.CharField(max_length=15, blank=True, null=True)
 
     def __init__(self, *args, **kwargs):
-        self.status = None
+        self.state = None
         return super(Slave, self).__init__(*args, **kwargs)
 
     def __unicode__(self):
@@ -246,10 +246,11 @@ class Slave(models.Model):
 
         super(Slave, self).delete()
 
-    def _fetch_current_status(self):
+    def _fetch_current_state(self):
         return self.cloud_server.status
 
-    def update_status(self):
-        self.status = self._fetch_current_status()
-        self.save(update_fields=['status'])
+    def update_state(self):
+        self.state = self._fetch_current_state()
+        self.save(update_fields=['state'])
+
 

@@ -333,35 +333,35 @@ class ReservationTests(TestCase):
     def test_update_status_still_building(self):
         res = self._create_res()
 
-        with mock.patch.object(cloudslave.models.Slave, '_fetch_current_status') as _fetch_current_status:
-            _fetch_current_status.side_effect = ['BUILD'] * 10
-            res.update_status()
+        with mock.patch.object(cloudslave.models.Slave, '_fetch_current_state') as _fetch_current_state:
+            _fetch_current_state.side_effect = ['BUILD'] * 10
+            res.update_state()
             self.assertEquals(res.state, res.BOOTING)
 
     def test_update_status_fails(self):
         res = self._create_res()
         res.terminate = lambda: None
 
-        with mock.patch.object(cloudslave.models.Slave, '_fetch_current_status') as _fetch_current_status:
-            _fetch_current_status.side_effect = ['ERROR', Exception("Don't keep polling after you've seen a failure")]
-            res.update_status()
+        with mock.patch.object(cloudslave.models.Slave, '_fetch_current_state') as _fetch_current_state:
+            _fetch_current_state.side_effect = ['ERROR', Exception("Don't keep polling after you've seen a failure")]
+            res.update_state()
             self.assertEquals(res.state, res.FAILED_TO_START)
 
     def test_update_status_times_out(self):
         res = self._create_res()
         res.terminate = lambda: None
 
-        with mock.patch.object(cloudslave.models.Slave, '_fetch_current_status') as _fetch_current_status:
+        with mock.patch.object(cloudslave.models.Slave, '_fetch_current_state') as _fetch_current_state:
             res.timeout = datetime.datetime.now()
-            _fetch_current_status.side_effect = ['BUILD'] * 10
-            res.update_status()
+            _fetch_current_state.side_effect = ['BUILD'] * 10
+            res.update_state()
             self.assertEquals(res.state, res.FAILED_TO_START)
 
     def test_update_status_active(self):
         res = self._create_res()
         res.terminate = lambda: None
 
-        with mock.patch.object(cloudslave.models.Slave, '_fetch_current_status') as _fetch_current_status:
-            _fetch_current_status.side_effect = ['ACTIVE'] * 10
-            res.update_status()
+        with mock.patch.object(cloudslave.models.Slave, '_fetch_current_state') as _fetch_current_state:
+            _fetch_current_state.side_effect = ['ACTIVE'] * 10
+            res.update_state()
             self.assertEquals(res.state, res.READY)
