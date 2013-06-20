@@ -17,19 +17,31 @@ import datetime
 import logging
 import random
 import re
+import select
 import string
+import StringIO
 
 from django.db import models
 from cloudslave import exc
 
 from novaclient.v1_1 import client
 from novaclient import exceptions as novaclient_exceptions
+import paramiko
 
 
 logger = logging.getLogger(__name__)
 
 
 class Cloud(models.Model):
+    DOES_NOT_NEED_FLOATING_IP = 0
+    AUTOMATICALLY_ASSIGNS_FLOATING_IP = 1
+    NEEDS_FLOATING_IP_ASSIGNED = 2
+    FLOATING_IP_MODES = (
+        (DOES_NOT_NEED_FLOATING_IP, 'Does not need floating IP (e.g. Rackspace)'),
+        (AUTOMATICALLY_ASSIGNS_FLOATING_IP, 'Automatically assigns a floating IP (e.g. HP)'),
+        (NEEDS_FLOATING_IP_ASSIGNED, 'Needs floating IP assigned by cloudslave'),
+    )
+
     name = models.CharField(max_length=200, primary_key=True)
     endpoint = models.URLField(max_length=200)
     user_name = models.CharField(max_length=200)
@@ -38,6 +50,8 @@ class Cloud(models.Model):
     region = models.CharField(max_length=200, blank=True)
     flavor_name = models.CharField(max_length=200)
     image_name = models.CharField(max_length=200)
+    floating_ip_mode = models.SmallIntegerField(choices=FLOATING_IP_MODES,
+                                                default=0)
 
     def __init__(self, *args, **kwargs):
         self._client = None
@@ -226,6 +240,7 @@ class Slave(models.Model):
 
     def __init__(self, *args, **kwargs):
         self.state = None
+        self._ip = None
         return super(Slave, self).__init__(*args, **kwargs)
 
     def __unicode__(self):
@@ -252,5 +267,82 @@ class Slave(models.Model):
     def update_state(self):
         self.state = self._fetch_current_state()
         self.save(update_fields=['state'])
+
+    @property
+    def ip(self):
+        if self._ip is None:
+            if self.reservation.cloud.floating_ip_mode > 0:
+                index = -1
+            else:
+                index = 0
+
+            self._ip = self.cloud_server.networks.values()[0][index]
+        return self._ip
+
+    @property
+    def paramiko_private_key(self):
+        private_key = self.reservation.cloud.keypair.private_key
+        priv_key_file = StringIO.StringIO(private_key)
+        return paramiko.RSAKey.from_private_key(priv_key_file)
+
+    def ssh_client(self, username='ubuntu'):
+        ssh = paramiko.SSHClient()
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        ssh.connect(self.ip, username='ubuntu', pkey=self.paramiko_private_key)
+        return ssh
+
+    def _run_cmd(self, cmd, input=None):
+        logger.debug('Running: %s' % (cmd,))
+
+        ssh = self.ssh_client()
+        transport = ssh.get_transport()
+
+        chan = transport.open_session()
+        chan.exec_command(cmd)
+        chan.set_combine_stderr(True)
+        if input:
+            chan.sendall(input)
+            chan.shutdown_write()
+
+        while True:
+            r, _, __ = select.select([chan], [], [], 1)
+            if r:
+                if chan in r:
+                    if chan.recv_ready():
+                        s = chan.recv(4096)
+                        if len(s) == 0:
+                            break
+                        yield s
+                    else:
+                        status = chan.recv_exit_status()
+                        if status != 0:
+                            raise Exception('Command %s failed' % cmd)
+                        break
+
+        ssh.close()
+
+    def run_cmd(self, cmd, *args, **kwargs):
+        def log(s):
+            logger.info('%-15s: %s' % (self.name, s))
+
+        def log_whole_lines(lbuf):
+            while '\n' in lbuf:
+                line, lbuf = lbuf.split('\n', 1)
+                log(line)
+            return lbuf
+
+        output_callback = kwargs.pop('output_callback', lambda _: None)
+
+        out = ''
+        lbuf = ''
+        for data in self._run_cmd(cmd, *args, **kwargs):
+            output_callback(data)
+            out += data
+            lbuf += data
+            lbuf = log_whole_lines(lbuf)
+
+        lbuf = log_whole_lines(lbuf)
+        log(lbuf)
+        return out
 
 
