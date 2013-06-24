@@ -30,8 +30,8 @@ class CloudTests(TestCase):
     test_password = 'testpassword1'
     test_endpoint = 'http://example.com/v2.0'
 
-    def _create(self, **kwargs):
-        cloud = Cloud(name='testcloud1',
+    def _create(self, name='testcloud1', **kwargs):
+        cloud = Cloud(name=name,
                       endpoint=self.test_endpoint,
                       user_name=self.test_user,
                       tenant_name=self.test_tenant,
@@ -45,6 +45,15 @@ class CloudTests(TestCase):
 
     def test_create_with_region(self):
         self._create(region='RegionTwo')
+
+    def test_get_random(self):
+        self._create(name='cloud1')
+        self._create(name='cloud2')
+        self._create(name='cloud3')
+        # There's a 0.03% chance this test will fail. I'm OK with those
+        # odds.
+        them_all = set([Cloud.get_random() for x in range(20)])
+        self.assertEqual(len(them_all), 3)
 
     def test_cloud_client_without_region(self):
         cloud = self._create()

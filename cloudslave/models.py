@@ -60,6 +60,10 @@ class Cloud(models.Model):
     def __unicode__(self):
         return self.name
 
+    @classmethod
+    def get_random(cls):
+        return random.choice(cls.objects.all())
+
     @property
     def client(self):
         if self._client is None:
