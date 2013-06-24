@@ -21,7 +21,7 @@ setup(
     description='Create, use and destroy temporary slaves in the cloud',
     author='Soren Hansen',
     author_email='sorhanse@cisco.com',
-    url='http://github.com/sorenh/python-cloudslave',
+    url='http://github.com/sorenh/python-django-cloudslave',
     packages=find_packages(),
     include_package_data=True,
     license='Apache 2.0',
