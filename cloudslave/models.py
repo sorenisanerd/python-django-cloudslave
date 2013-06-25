@@ -241,6 +241,7 @@ class Slave(models.Model):
     reservation = models.ForeignKey(Reservation)
     cloud_node_id = models.CharField(max_length=200)
     state = models.CharField(max_length=15, blank=True, null=True)
+    floating_ip = models.IPAddressField(blank=True, null=True)
 
     def __init__(self, *args, **kwargs):
         self.state = None
@@ -259,6 +260,7 @@ class Slave(models.Model):
     def delete(self):
         logger.info('Deleting server %s on cloud %s.' % (self, self.reservation.cloud))
         try:
+            self._release_floating_ip()
             self.cloud_server.delete()
         except novaclient_exceptions.NotFound:
             logger.info('Node already gone, unable to delete it')
@@ -268,8 +270,25 @@ class Slave(models.Model):
     def _fetch_current_state(self):
         return self.cloud_server.status
 
+    def _assign_floating_ip(self):
+        if self.reservation.cloud.floating_ip_mode == Cloud.NEEDS_FLOATING_IP_ASSIGNED:
+            floating_ip = self.reservation.cloud.client.floating_ips.create()
+            self.floating_ip = floating_ip.ip
+            self.cloud_server.add_floating_ip(floating_ip.ip)
+
+    def _release_floating_ip(self):
+        if self.reservation.cloud.floating_ip_mode == Cloud.NEEDS_FLOATING_IP_ASSIGNED:
+            ref = self.reservation.cloud.client.floating_ips.find(ip=self.floating_ip)
+            self.cloud_server.remove_floating_ip(self.floating_ip)
+            ref.delete()
+
     def update_state(self):
-        self.state = self._fetch_current_state()
+        new_state = self._fetch_current_state()
+        if new_state != self.state:
+            if new_state == 'ACTIVE':
+                self._assign_floating_ip()
+
+        self.state = new_state
         self.save(update_fields=['state'])
 
     @property
