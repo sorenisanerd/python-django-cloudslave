@@ -2,3 +2,4 @@ Django
 mock
 python-novaclient
 PyYAML
+south
