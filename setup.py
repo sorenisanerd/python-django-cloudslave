@@ -28,7 +28,8 @@ setup(
     keywords='django openstack cloud',
     install_requires=[
         'django',
-        'python-novaclient'
+        'python-novaclient',
+        'south'
     ],
     test_suite='tests.main',
     classifiers=[
