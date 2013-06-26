@@ -275,6 +275,7 @@ class Slave(models.Model):
             floating_ip = self.reservation.cloud.client.floating_ips.create()
             self.floating_ip = floating_ip.ip
             self.cloud_server.add_floating_ip(floating_ip.ip)
+            self._ip = None
 
     def _release_floating_ip(self):
         if self.reservation.cloud.floating_ip_mode == Cloud.NEEDS_FLOATING_IP_ASSIGNED:
