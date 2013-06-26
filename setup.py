@@ -17,7 +17,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='django-cloudslave',
-    version='0.2.0',
+    version='0.2.1',
     description='Create, use and destroy temporary slaves in the cloud',
     author='Soren Hansen',
     author_email='sorhanse@cisco.com',
