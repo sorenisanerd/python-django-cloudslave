@@ -84,7 +84,7 @@ class Cloud(models.Model):
         return self._client
 
     def _random_string(self, length=8):
-        alphabet = string.letters + string.digits
+        alphabet = string.lowercase + string.digits
         return ''.join([random.choice(alphabet) for x in range(length)])
 
     def _get_unique_name(self, mgr):
