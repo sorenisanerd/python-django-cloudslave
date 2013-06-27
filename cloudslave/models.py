@@ -14,10 +14,12 @@
 #   limitations under the License.
 
 import datetime
+import errno
 import logging
 import random
 import re
 import select
+import socket
 import string
 import StringIO
 
@@ -228,9 +230,14 @@ class Reservation(models.Model):
                 self.set_state(self.BOOTING)
                 break
             elif slave.state == 'ACTIVE':
+                try:
+                    slave.run_cmd('true')
+                except socket.error, e:
+                    if e.errno == errno.ECONNREFUSED:
+                        continue
                 active_count += 1
 
-        if active_count == self.slave_set.count():
+        if active_count == self.number_of_slaves:
             self.set_state(self.READY)
 
         return self.state
