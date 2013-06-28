@@ -310,11 +310,12 @@ class Slave(models.Model):
     def external_ip(self):
         if self._external_ip is None:
             if self.reservation.cloud.floating_ip_mode > 0:
-                index = -1
+                external_ip = self.cloud_server.networks.values()[0][-1]
             else:
-                index = 0
+                external_ip = self.internal_ip
 
-            self._external_ip = self.cloud_server.networks.values()[0][index]
+            self._external_ip = external_ip
+
         return self._external_ip
 
     @property
