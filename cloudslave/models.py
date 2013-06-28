@@ -252,7 +252,8 @@ class Slave(models.Model):
 
     def __init__(self, *args, **kwargs):
         self.state = None
-        self._ip = None
+        self._internal_ip = None
+        self._external_ip = None
         return super(Slave, self).__init__(*args, **kwargs)
 
     def __unicode__(self):
@@ -282,7 +283,7 @@ class Slave(models.Model):
             floating_ip = self.reservation.cloud.client.floating_ips.create()
             self.floating_ip = floating_ip.ip
             self.cloud_server.add_floating_ip(floating_ip.ip)
-            self._ip = None
+            self._external_ip = floating_ip.ip
 
     def _release_floating_ip(self):
         if self.reservation.cloud.floating_ip_mode == Cloud.NEEDS_FLOATING_IP_ASSIGNED:
@@ -297,18 +298,24 @@ class Slave(models.Model):
                 self._assign_floating_ip()
 
         self.state = new_state
-        self.save(update_fields=['state'])
+        self.save()
 
     @property
-    def ip(self):
-        if self._ip is None:
+    def internal_ip(self):
+        if self._internal_ip is None:
+            self._internal_ip = self.cloud_server.networks.values()[0][0]
+        return self._internal_ip
+
+    @property
+    def external_ip(self):
+        if self._external_ip is None:
             if self.reservation.cloud.floating_ip_mode > 0:
                 index = -1
             else:
                 index = 0
 
-            self._ip = self.cloud_server.networks.values()[0][index]
-        return self._ip
+            self._external_ip = self.cloud_server.networks.values()[0][index]
+        return self._external_ip
 
     @property
     def paramiko_private_key(self):
@@ -319,7 +326,7 @@ class Slave(models.Model):
     def ssh_client(self, username='ubuntu'):
         ssh = paramiko.SSHClient()
         ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        ssh.connect(self.ip, username='ubuntu', pkey=self.paramiko_private_key)
+        ssh.connect(self.external_ip, username='ubuntu', pkey=self.paramiko_private_key)
         return ssh
 
     def _run_cmd(self, cmd, input=None):

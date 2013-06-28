@@ -370,7 +370,8 @@ class ReservationTests(TestCase):
         res = self._create_res()
         res.terminate = lambda: None
 
-        with mock.patch.object(cloudslave.models.Slave, '_fetch_current_state') as _fetch_current_state:
-            _fetch_current_state.side_effect = ['ACTIVE'] * 10
-            res.update_state()
-            self.assertEquals(res.state, res.READY)
+        with mock.patch.object(cloudslave.models.Slave, 'run_cmd') as run_cmd:
+            with mock.patch.object(cloudslave.models.Slave, '_fetch_current_state') as _fetch_current_state:
+                _fetch_current_state.side_effect = ['ACTIVE'] * 10
+                res.update_state()
+                self.assertEquals(res.state, res.READY)
